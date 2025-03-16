@@ -7,6 +7,7 @@ public class Client
     NetworkStream stream;
 
     bool wasClosed = false, dead = false;
+    string sessionId = "";
 
     public Listener<string> onMessageReceived
     {
@@ -14,10 +15,11 @@ public class Client
         private set;
     } = new Listener<string>();
 
-    public Client (TcpClient socket, NetworkStream stream)
+    public Client (TcpClient socket, NetworkStream stream, string sessionId)
     {
         this.socket = socket;
         this.stream = stream;
+        this.sessionId = sessionId;
     }
 
     public void Run()

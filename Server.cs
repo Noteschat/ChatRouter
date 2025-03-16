@@ -114,6 +114,22 @@ public class Server
         // Read the client's handshake request
         var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
         var request = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+        var sessionIdIndex = request.IndexOf("sessionId=") + 10;
+        var sessionId = request.Substring(sessionIdIndex, 36);
+
+        // Check SessionId
+        var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.Add("Cookie", "sessionId=" + sessionId);
+        var result = httpClient.GetAsync("http://localhost:5213/api/login/valid");
+        if (result.Result.StatusCode != HttpStatusCode.OK)
+        {
+            var responseString = $"HTTP/1.1 403 Forbidden\r\n" +
+                                 $"Content-Length: 0\r\n\r\n";
+            var errorBytes = Encoding.UTF8.GetBytes(responseString);
+            await stream.WriteAsync(errorBytes, 0, errorBytes.Length);
+            Logger.Warn($"A connection attempt from: {clientSocket.Client.RemoteEndPoint} was rejected");
+            return;
+        }
 
         // Extract the WebSocket key from the request
         var keyStart = request.IndexOf("Sec-WebSocket-Key:") + 19;
@@ -135,7 +151,7 @@ public class Server
         var responseBytes = Encoding.UTF8.GetBytes(response);
         await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
 
-        Client client = new Client(clientSocket, stream);
+        Client client = new Client(clientSocket, stream, sessionId);
 
         client.onMessageReceived.AddListener((string message) =>
         {
