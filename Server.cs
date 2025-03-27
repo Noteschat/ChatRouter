@@ -61,7 +61,7 @@ public class Server
     void StartListener()
     {
         var ipAddress = IPAddress.Any;
-        var port = 6798;
+        var port = 5201;
 
         var endPoint = new IPEndPoint(ipAddress, port);
         serverSocket = new TcpListener(endPoint);
@@ -120,7 +120,7 @@ public class Server
         // Check SessionId
         var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Cookie", "sessionId=" + sessionId);
-        var result = httpClient.GetAsync("http://localhost:5213/api/login/valid");
+        var result = httpClient.GetAsync("http://localhost/api/identity/login/valid");
         if (result.Result.StatusCode != HttpStatusCode.OK)
         {
             var responseString = $"HTTP/1.1 403 Forbidden\r\n" +
