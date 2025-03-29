@@ -1,6 +1,7 @@
 ﻿using ChatRouter;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 
 public class Client
 {
@@ -9,20 +10,18 @@ public class Client
 
     bool wasClosed = false, dead = false;
     public string sessionId { get; private set; } = "";
-    public User? user { get; private set; } = null;
 
-    public Listener<string> onMessageReceived
+    public Listener<ServerMessage> onMessageReceived
     {
         get;
         private set;
-    } = new Listener<string>();
+    } = new Listener<ServerMessage>();
 
-    public Client (TcpClient socket, NetworkStream stream, string sessionId, User user)
+    public Client (TcpClient socket, NetworkStream stream, string sessionId)
     {
         this.socket = socket;
         this.stream = stream;
         this.sessionId = sessionId;
-        this.user = user;
     }
 
     public void Run()
@@ -122,21 +121,13 @@ public class Client
         if (frame.payloadLength <= 0)
         {
             Logger.Warn($"Got Empty Frame:");
-            Logger.Warn($"Final: {frame.final}");
-            Logger.Warn($"RSV1: {frame.RSV1}");
-            Logger.Warn($"RSV2: {frame.RSV2}");
-            Logger.Warn($"RSV3: {frame.RSV3}");
-            Logger.Warn($"OpCode: {frame.opCode}");
-            Logger.Warn($"Masked: {frame.masked}");
-            Logger.Warn($"PayloadLength: {frame.payloadLength}");
             return null;
         }
 
         try
         {
             var receivedMessage = Encoding.UTF8.GetString(frame.payload);
-            Logger.Info($"{receivedMessage}");
-            onMessageReceived.Invoke(receivedMessage);
+            onMessageReceived.Invoke(JsonSerializer.Deserialize<ServerMessage>(receivedMessage));
         }
         catch (Exception ex)
         {

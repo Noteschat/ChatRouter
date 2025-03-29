@@ -13,7 +13,7 @@ public class Server
     Listener onExit = new Listener();
     TcpListener serverSocket;
     List<Client> clients = new List<Client>();
-    string chatId = "e97271a3-c3de-4ff8-b172-2b9e3fafec9c"; //TODO: Should be sent by the client, not given from the server
+    //string chatId = "0ccbd809-845a-4d48-939a-68c981ab0f39"; //TODO: Should be sent by the client, not given from the server
 
     public async Task Run()
     {
@@ -124,7 +124,6 @@ public class Server
         var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Cookie", "sessionId=" + sessionId);
         var result = await httpClient.GetAsync("http://localhost/api/identity/login/valid");
-        User? user = null;
         if (result.StatusCode != HttpStatusCode.OK)
         {
             var responseString = $"HTTP/1.1 403 Forbidden\r\n" +
@@ -133,11 +132,6 @@ public class Server
             await stream.WriteAsync(errorBytes, 0, errorBytes.Length);
             Logger.Warn($"A connection attempt from: {clientSocket.Client.RemoteEndPoint} was rejected");
             return;
-        }
-        else
-        {
-            var jsonResponse = await result.Content.ReadAsStringAsync();
-            user = JsonSerializer.Deserialize<User>(jsonResponse);
         }
 
         // Extract the WebSocket key from the request
@@ -159,17 +153,17 @@ public class Server
         var responseBytes = Encoding.UTF8.GetBytes(response);
         await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
 
-        Client client = new Client(clientSocket, stream, sessionId, user.Value);
+        Client client = new Client(clientSocket, stream, sessionId);
 
-        client.onMessageReceived.AddListener((string message) =>
+        client.onMessageReceived.AddListener((ServerMessage message) =>
         {
             ForwardMessage(client, message);
         });
-        client.onMessageReceived.AddListener(async (string message) =>
+        client.onMessageReceived.AddListener(async (ServerMessage message) =>
         {
             try
             {
-                await StorageManager.SaveMessage(client, message, chatId);
+                await StorageManager.SaveMessage(client, message);
             }
             catch (Exception e)
             {
@@ -205,7 +199,7 @@ public class Server
         }
     }
 
-    public void ForwardMessage(Client sender, string message)
+    public void ForwardMessage(Client sender, ServerMessage message)
     {
         List<Task> tasks = new List<Task>();
         foreach (Client client in clients)
@@ -215,7 +209,7 @@ public class Server
                 continue;
             }
 
-            tasks.Add(client.SendFrame(message));
+            tasks.Add(client.SendFrame(JsonSerializer.Serialize(message)));
         }
         Task.WaitAll(tasks.ToArray());
     }
