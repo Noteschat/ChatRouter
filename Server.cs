@@ -2,6 +2,8 @@
 using System.Net;
 using System.Text;
 using System.Security.Cryptography;
+using ChatRouter;
+using System.Text.Json;
 
 // This server is limited to messages of up-to 65535 chars (2^16 signed)
 public class Server
@@ -11,6 +13,7 @@ public class Server
     Listener onExit = new Listener();
     TcpListener serverSocket;
     List<Client> clients = new List<Client>();
+    string chatId = "e97271a3-c3de-4ff8-b172-2b9e3fafec9c"; //TODO: Should be sent by the client, not given from the server
 
     public async Task Run()
     {
@@ -120,8 +123,9 @@ public class Server
         // Check SessionId
         var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Cookie", "sessionId=" + sessionId);
-        var result = httpClient.GetAsync("http://localhost/api/identity/login/valid");
-        if (result.Result.StatusCode != HttpStatusCode.OK)
+        var result = await httpClient.GetAsync("http://localhost/api/identity/login/valid");
+        User? user = null;
+        if (result.StatusCode != HttpStatusCode.OK)
         {
             var responseString = $"HTTP/1.1 403 Forbidden\r\n" +
                                  $"Content-Length: 0\r\n\r\n";
@@ -129,6 +133,11 @@ public class Server
             await stream.WriteAsync(errorBytes, 0, errorBytes.Length);
             Logger.Warn($"A connection attempt from: {clientSocket.Client.RemoteEndPoint} was rejected");
             return;
+        }
+        else
+        {
+            var jsonResponse = await result.Content.ReadAsStringAsync();
+            user = JsonSerializer.Deserialize<User>(jsonResponse);
         }
 
         // Extract the WebSocket key from the request
@@ -140,7 +149,6 @@ public class Server
         var keyEnd = request.IndexOf("\r\n", keyStart);
         var key = request.Substring(keyStart, keyEnd - keyStart).Trim();
 
-
         string acceptKey = GenerateWebSocketAcceptKey(key);
 
         var response = $"HTTP/1.1 101 Switching Protocols\r\n" +
@@ -151,11 +159,22 @@ public class Server
         var responseBytes = Encoding.UTF8.GetBytes(response);
         await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
 
-        Client client = new Client(clientSocket, stream, sessionId);
+        Client client = new Client(clientSocket, stream, sessionId, user.Value);
 
         client.onMessageReceived.AddListener((string message) =>
         {
             ForwardMessage(client, message);
+        });
+        client.onMessageReceived.AddListener(async (string message) =>
+        {
+            try
+            {
+                await StorageManager.SaveMessage(client, message, chatId);
+            }
+            catch (Exception e)
+            {
+                Logger.Warn(e.Message);
+            }
         });
 
         clients.Add(client);

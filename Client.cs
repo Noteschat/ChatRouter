@@ -1,4 +1,5 @@
-﻿using System.Net.Sockets;
+﻿using ChatRouter;
+using System.Net.Sockets;
 using System.Text;
 
 public class Client
@@ -7,7 +8,8 @@ public class Client
     NetworkStream stream;
 
     bool wasClosed = false, dead = false;
-    string sessionId = "";
+    public string sessionId { get; private set; } = "";
+    public User? user { get; private set; } = null;
 
     public Listener<string> onMessageReceived
     {
@@ -15,11 +17,12 @@ public class Client
         private set;
     } = new Listener<string>();
 
-    public Client (TcpClient socket, NetworkStream stream, string sessionId)
+    public Client (TcpClient socket, NetworkStream stream, string sessionId, User user)
     {
         this.socket = socket;
         this.stream = stream;
         this.sessionId = sessionId;
+        this.user = user;
     }
 
     public void Run()
