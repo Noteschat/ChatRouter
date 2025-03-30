@@ -29,14 +29,6 @@ public class Client
         var dead = false;
         List<Task> tasks = new List<Task>()
         {
-            //Task.Run(async () =>
-            //{
-            //    while (!dead && !wasClosed)
-            //    {
-            //        await SendFrame(DateTime.Now.ToString());
-            //        Thread.Sleep(1000);
-            //    }
-            //}),
             Task.Run(async () =>
             {
                 while (!dead && !wasClosed)
