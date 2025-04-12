@@ -13,7 +13,8 @@ public class Server
     Listener onExit = new Listener();
     TcpListener serverSocket;
     List<Client> clients = new List<Client>();
-    //string chatId = "0ccbd809-845a-4d48-939a-68c981ab0f39"; //TODO: Should be sent by the client, not given from the server
+    UntimedCache<List<Client>> chatCache;
+    UntimedCache<Client> userIdToClient;
 
     public async Task Run()
     {
@@ -70,6 +71,9 @@ public class Server
         serverSocket = new TcpListener(endPoint);
         serverSocket.Start();
         Logger.Info($"WebSocket server listening on {endPoint}");
+
+        chatCache = new UntimedCache<List<Client>>();
+        userIdToClient = new UntimedCache<Client>();
     }
 
     async Task HandleCommand(string cmd)
@@ -121,6 +125,7 @@ public class Server
         var sessionId = request.Substring(sessionIdIndex, 36);
 
         // Check SessionId
+        User user;
         var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Cookie", "sessionId=" + sessionId);
         var result = await httpClient.GetAsync("http://localhost/api/identity/login/valid");
@@ -133,6 +138,8 @@ public class Server
             Logger.Warn($"A connection attempt from: {clientSocket.Client.RemoteEndPoint} was rejected");
             return;
         }
+
+        user = JsonSerializer.Deserialize<User>(await result.Content.ReadAsStringAsync());
 
         // Extract the WebSocket key from the request
         var keyStart = request.IndexOf("Sec-WebSocket-Key:") + 19;
@@ -153,11 +160,12 @@ public class Server
         var responseBytes = Encoding.UTF8.GetBytes(response);
         await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
 
-        Client client = new Client(clientSocket, stream, sessionId);
+        Client client = new Client(clientSocket, stream, sessionId, user);
+        userIdToClient.Add(user.Id, client);
 
-        client.onMessageReceived.AddListener((ServerMessage message) =>
+        client.onMessageReceived.AddListener(async (ServerMessage message) =>
         {
-            ForwardMessage(client, message);
+            await ForwardMessage(client, message);
         });
         client.onMessageReceived.AddListener(async (ServerMessage message) =>
         {
@@ -199,10 +207,40 @@ public class Server
         }
     }
 
-    public void ForwardMessage(Client sender, ServerMessage message)
+    public async Task ForwardMessage(Client sender, ServerMessage message)
     {
+        List<Client> receivers = new List<Client>();
+        var cacheResult = chatCache.Get(message.chatId);
+        if (cacheResult.IsSuccess)
+        {
+            if (cacheResult.Success.Contains(sender))
+            {
+                receivers.AddRange(cacheResult.Success);
+            }
+            else
+            {
+                return;
+            }
+        }
+        else
+        {
+            var result = await StorageManager.GetChat(sender, message.chatId);
+            if(result.IsSuccess)
+            {
+                foreach (var userId in result.Success.Users)
+                {
+                    var clientRes = userIdToClient.Get(userId);
+                    receivers.Add(clientRes.Success);
+                }
+            }
+            else
+            {
+                return;
+            }
+        }
+
         List<Task> tasks = new List<Task>();
-        foreach (Client client in clients)
+        foreach (Client client in receivers)
         {
             if (client == sender)
             {

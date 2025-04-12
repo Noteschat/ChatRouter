@@ -11,17 +11,20 @@ public class Client
     bool wasClosed = false, dead = false;
     public string sessionId { get; private set; } = "";
 
+    public User user;
+
     public Listener<ServerMessage> onMessageReceived
     {
         get;
         private set;
     } = new Listener<ServerMessage>();
 
-    public Client (TcpClient socket, NetworkStream stream, string sessionId)
+    public Client (TcpClient socket, NetworkStream stream, string sessionId, User user)
     {
         this.socket = socket;
         this.stream = stream;
         this.sessionId = sessionId;
+        this.user = user;
     }
 
     public void Run()
