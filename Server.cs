@@ -51,7 +51,7 @@ public class Server
         while (running)
         {
             string cmd = Console.ReadLine();
-            if(cmd == null)
+            if (cmd == null)
             {
                 continue;
             }
@@ -225,12 +225,15 @@ public class Server
         else
         {
             var result = await StorageManager.GetChat(sender, message.chatId);
-            if(result.IsSuccess)
+            if (result.IsSuccess)
             {
                 foreach (var userId in result.Success.Users)
                 {
                     var clientRes = userIdToClient.Get(userId);
-                    receivers.Add(clientRes.Success);
+                    if (clientRes.IsSuccess)
+                    {
+                        receivers.Add(clientRes.Success);
+                    }
                 }
             }
             else
@@ -246,7 +249,6 @@ public class Server
             {
                 continue;
             }
-
             tasks.Add(client.SendFrame(JsonSerializer.Serialize(message)));
         }
         Task.WaitAll(tasks.ToArray());
